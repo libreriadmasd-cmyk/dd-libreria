@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
-// 4 tabs fijos + Todos + General (fallback automático)
+// Pestañas fijas y estables.
 export const FIXED_CATEGORIES = [
   "Todos",
   "Marroquinería",
@@ -18,11 +18,7 @@ export const CategoryTabs = ({ selected, onSelect, counts = {} }) => {
     onSelect(cat);
   };
 
-  // If data has "General" or other extra categories, expose General tab
-  const hasGeneral = (counts.General || 0) > 0;
-  const tabs = hasGeneral
-    ? [...FIXED_CATEGORIES, "General"]
-    : FIXED_CATEGORIES;
+  const tabs = FIXED_CATEGORIES;
 
   return (
     <nav

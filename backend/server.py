@@ -123,6 +123,11 @@ def _clean_category(raw: str) -> str:
         return "General"
     return v
 
+def _normalize_category_for_libreria(categoria: Optional[str]) -> str:
+    if not categoria or categoria == "General":
+        return "Librería"
+    return categoria
+
 def _parse_csv_rows(raw_text: str):
     """Parse CSV (our expected schema) and yield normalized product dicts."""
     # tolerate BOM
@@ -188,7 +193,10 @@ async def list_products(
 ):
     query_parts = []
     if categoria and categoria != "Todos":
-        query_parts.append({"categoria": categoria})
+        if categoria == "Librería":
+            query_parts.append({"categoria": {"$in": ["Librería", "General"]}})
+        else:
+            query_parts.append({"categoria": categoria})
     if subcategoria:
         query_parts.append({"subcategoria": subcategoria})
     if color:
@@ -290,9 +298,14 @@ async def categories():
     ]
     rows = await db.products.aggregate(pipeline).to_list(200)
     total = await db.products.count_documents({})
+    counts = {}
+    for r in rows:
+        name = r["_id"] or "General"
+        name = _normalize_category_for_libreria(name)
+        counts[name] = counts.get(name, 0) + r["count"]
     return {
         "total": total,
-        "categories": [{"name": r["_id"] or "General", "count": r["count"]} for r in rows],
+        "categories": [{"name": name, "count": count} for name, count in counts.items()],
     }
 
 # =========================================================
@@ -706,7 +719,10 @@ async def subclassify_all(
 @api_router.get("/filters/{categoria}")
 async def category_filters(categoria: str):
     """Available filters for a category: subcategorias, colors, price range."""
-    base = {"categoria": categoria}
+    if categoria == "Librería":
+        base = {"categoria": {"$in": ["Librería", "General"]}}
+    else:
+        base = {"categoria": categoria}
     # Subcategorías
     sub_pipeline = [
         {"$match": base},

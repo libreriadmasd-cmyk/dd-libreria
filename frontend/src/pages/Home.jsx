@@ -59,7 +59,8 @@ export default function Home() {
       const data = await fetchCategories();
       const map = { __total: data.total };
       (data.categories || []).forEach((c) => {
-        map[c.name] = c.count;
+        const categoryName = c.name === "General" ? "Librería" : c.name;
+        map[categoryName] = (map[categoryName] || 0) + c.count;
       });
       setCounts(map);
     } catch {
