@@ -1,4 +1,5 @@
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8001";
+const API = `${BACKEND_BASE_URL}/api`;
 
 const TOKEN_KEY = "dd_admin_token";
 
