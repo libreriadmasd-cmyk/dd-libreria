@@ -6,6 +6,7 @@ import { formatARS } from "../lib/format";
 import { useCart } from "../context/CartContext";
 import { toast } from "sonner";
 import { fetchProduct } from "../lib/api";
+import { cldHero, cldThumb } from "../lib/cloudinary";
 
 const CATEGORY_STYLES = {
   Marroquinería: "bg-pastel-mint text-brand-greenDark",
@@ -49,16 +50,20 @@ export default function ProductDetail() {
   }, [product?.sku]);
 
   const handleAdd = () => {
-    addToCart(product);
+    const oferta = Number(product?.precio_oferta) || 0;
+    const precio = Number(product?.precio) || 0;
+    const onSale = oferta > 0 && oferta < precio;
+    addToCart(onSale ? { ...product, precio: oferta } : product);
     toast.success("Agregado a la bolsa", { description: product?.nombre });
   };
 
   const currentImg = gallery[activeImg] || "";
-  const imgSrc = currentImg
+  const rawImg = currentImg
     ? isUrl(currentImg)
       ? currentImg
       : `${process.env.PUBLIC_URL || ""}/images/${currentImg}`
     : "";
+  const imgSrc = cldHero(rawImg);
 
   const badgeClass = product?.categoria
     ? CATEGORY_STYLES[product.categoria] || CATEGORY_STYLES.General
@@ -136,9 +141,10 @@ export default function ProductDetail() {
                   data-testid="pdp-gallery"
                 >
                   {gallery.map((src, idx) => {
-                    const thumb = isUrl(src)
+                    const rawThumb = isUrl(src)
                       ? src
                       : `${process.env.PUBLIC_URL || ""}/images/${src}`;
+                    const thumb = cldThumb(rawThumb);
                     const active = idx === activeImg;
                     return (
                       <button
@@ -196,12 +202,34 @@ export default function ProductDetail() {
                 <p className="text-[11px] uppercase tracking-[0.15em] text-gray-500">
                   Precio
                 </p>
-                <p
-                  className="font-display text-4xl font-bold text-brand-ink mt-1 tabular-nums"
-                  data-testid="pdp-price"
-                >
-                  {formatARS(product.precio)}
-                </p>
+                {(() => {
+                  const oferta = Number(product.precio_oferta) || 0;
+                  const precio = Number(product.precio) || 0;
+                  const onSale = oferta > 0 && oferta < precio;
+                  const off = onSale ? Math.round(((precio - oferta) / precio) * 100) : 0;
+                  return onSale ? (
+                    <div className="mt-1 space-y-1" data-testid="pdp-price">
+                      <p className="text-base text-gray-400 line-through tabular-nums">
+                        {formatARS(precio)}
+                      </p>
+                      <div className="flex items-baseline gap-3">
+                        <p className="font-display text-4xl font-bold text-red-600 tabular-nums">
+                          {formatARS(oferta)}
+                        </p>
+                        <span className="text-xs font-extrabold bg-red-600 text-white px-2 py-1 rounded-full">
+                          -{off}% OFF
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p
+                      className="font-display text-4xl font-bold text-brand-ink mt-1 tabular-nums"
+                      data-testid="pdp-price"
+                    >
+                      {formatARS(precio)}
+                    </p>
+                  );
+                })()}
                 <div className="mt-3 flex items-center gap-2 text-sm">
                   {product.stock > 0 ? (
                     <>
@@ -224,12 +252,11 @@ export default function ProductDetail() {
               <button
                 type="button"
                 onClick={handleAdd}
-                style={{ color: "#FAFAF7" }}
-                className="w-full inline-flex items-center justify-center gap-2 h-12 px-6 rounded-full bg-brand-ink hover:bg-black text-sm font-semibold transition-all active:scale-[0.98]"
+                className="w-full inline-flex items-center justify-center gap-2 h-12 px-6 rounded-full bg-brand-teal hover:bg-brand-tealDark text-white text-sm font-semibold transition-all active:scale-[0.98] shadow-sm hover:shadow-md"
                 data-testid="pdp-add-to-cart"
               >
                 <Plus className="w-5 h-5" strokeWidth={2.5} />
-                Agregar al carrito
+                Lo quiero
               </button>
 
               <button

@@ -38,16 +38,7 @@ import {
 import { formatARS } from "../lib/format";
 import { AdminTools } from "../components/store/AdminTools";
 import { GalleryModal } from "../components/store/GalleryModal";
-
-// Subcategorías por categoría (deben coincidir con SUBCATEGORY_TREE del backend)
-const SUBCATS_BY_CAT = {
-  Marroquinería: ["Mochilas","Carteras y Bolsos","Riñoneras y Neceser","Valijas y Viaje","Accesorios"],
-  Librería: ["Estudio","Oficina","Creatividad","Organización","Kits"],
-  Juguetería: ["Juegos de Mesa","Muñecos y Figuras","Didácticos","Aire Libre y Rodados","Primera Infancia"],
-  Tecno: ["Audio","Computación","Gaming","Energía","Accesorios Celular"],
-  Regalería: ["Hogar y Bazar","Decoración","Mates y Termos","Regalos"],
-  General: [],
-};
+import { StoreConfigForm } from "../components/store/StoreConfigForm";
 
 // =============== Login =================
 const LoginView = ({ onLogged }) => {
@@ -82,10 +73,10 @@ const LoginView = ({ onLogged }) => {
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">
-              D+D · Back-office
+              Nexo Store · Alcorta
             </p>
-            <h1 className="font-display text-xl font-bold text-brand-ink">
-              Acceso administrador
+            <h1 className="font-display text-xl font-bold text-brand-blue">
+              Panel de Control · Nexo Store
             </h1>
           </div>
         </div>
@@ -116,7 +107,7 @@ const LoginView = ({ onLogged }) => {
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Entrar"}
         </button>
         <p className="mt-6 text-[11px] text-gray-400 text-center">
-          Acceso privado. Sólo personal autorizado de D+D.
+          Acceso privado. Sólo personal autorizado de Nexo Store.
         </p>
       </form>
     </div>
@@ -253,10 +244,9 @@ const CsvUpload = ({ onDone }) => {
 const ProductRow = ({ p, onSave, onDelete }) => {
   const [stock, setStock] = useState(p.stock);
   const [precio, setPrecio] = useState(p.precio);
-  const [precioOferta, setPrecioOferta] = useState(p.precio_oferta ?? "");
+  const [precioOferta, setPrecioOferta] = useState(p.precio_oferta || 0);
+  const [destacado, setDestacado] = useState(Boolean(p.destacado));
   const [categoria, setCategoria] = useState(p.categoria || "General");
-  const [subcategoria, setSubcategoria] = useState(p.subcategoria || "");
-  const [destacado, setDestacado] = useState(Boolean(p.destacado_inicio));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [imgOk, setImgOk] = useState(Boolean(p.imagen));
@@ -266,30 +256,39 @@ const ProductRow = ({ p, onSave, onDelete }) => {
   const dirty =
     String(stock) !== String(p.stock) ||
     String(precio) !== String(p.precio) ||
-    String(precioOferta) !== String(p.precio_oferta ?? "") ||
-    Boolean(destacado) !== Boolean(p.destacado_inicio) ||
-    subcategoria !== (p.subcategoria || "") ||
+    String(precioOferta || 0) !== String(p.precio_oferta || 0) ||
+    destacado !== Boolean(p.destacado) ||
     categoria !== (p.categoria || "General");
 
   const save = async () => {
     setSaving(true);
     try {
-      const patch = {
+      const updated = await adminUpdateProduct(p.sku, {
         stock: Number(stock) || 0,
         precio: Number(precio) || 0,
+        precio_oferta: Number(precioOferta) || 0,
+        destacado,
         categoria,
-        subcategoria: subcategoria || null,
-        destacado_inicio: Boolean(destacado),
-      };
-      const ofValue = String(precioOferta).trim();
-      patch.precio_oferta = ofValue === "" ? null : Number(ofValue) || null;
-      const updated = await adminUpdateProduct(p.sku, patch);
+      });
       toast.success("Guardado", { description: p.nombre });
       onSave?.(updated);
     } catch (e) {
       toast.error("Error", { description: e.message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const quickToggleDestacado = async () => {
+    const next = !destacado;
+    setDestacado(next);
+    try {
+      const updated = await adminUpdateProduct(p.sku, { destacado: next });
+      onSave?.(updated);
+      toast.success(next ? "★ Destacado en inicio" : "Quitado de destacados");
+    } catch (e) {
+      setDestacado(!next);
+      toast.error("Error", { description: e.message });
     }
   };
 
@@ -307,6 +306,8 @@ const ProductRow = ({ p, onSave, onDelete }) => {
     }
   };
 
+  const onSale = Number(precioOferta) > 0 && Number(precioOferta) < Number(precio);
+
   return (
     <>
     <tr
@@ -314,7 +315,13 @@ const ProductRow = ({ p, onSave, onDelete }) => {
       data-testid={`product-row-${p.sku}`}
     >
       <td className="p-3">
-        <div className="h-12 w-12 rounded-lg bg-pastel-sand overflow-hidden grid place-items-center">
+        <button
+          type="button"
+          onClick={() => setGalleryOpen(true)}
+          className="h-12 w-12 rounded-lg bg-pastel-sand overflow-hidden grid place-items-center hover:ring-2 hover:ring-brand-ink transition"
+          title="Cambiar/Agregar foto"
+          data-testid={`row-image-${p.sku}`}
+        >
           {p.imagen && imgOk ? (
             <img
               src={p.imagen}
@@ -325,66 +332,52 @@ const ProductRow = ({ p, onSave, onDelete }) => {
           ) : (
             <ImageOff className="w-4 h-4 text-gray-400" />
           )}
-        </div>
+        </button>
       </td>
-      <td className="p-3 max-w-[240px]">
+      <td className="p-3 max-w-[280px]">
         <p className="font-medium text-brand-ink text-sm truncate">{p.nombre}</p>
         <p className="text-[11px] text-gray-500 font-mono">{p.sku}</p>
+        {p.marca && (
+          <p className="text-[10px] text-gray-400 mt-0.5">Marca: {p.marca}{p.color ? ` · ${p.color}` : ""}</p>
+        )}
+        {p.subcategoria && (
+          <p className="text-[10px] text-brand-greenDark font-semibold mt-0.5">↳ {p.subcategoria}</p>
+        )}
       </td>
       <td className="p-3">
-        <div className="flex flex-col gap-1">
-          <select
-            value={categoria}
-            onChange={(e) => {
-              setCategoria(e.target.value);
-              setSubcategoria("");
-            }}
-            className="h-7 text-xs rounded-md border border-border bg-white px-2"
-            data-testid={`edit-category-${p.sku}`}
-          >
-            {["Marroquinería","Librería","Juguetería","Regalería","Tecno","General"].map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select
-            value={subcategoria}
-            onChange={(e) => setSubcategoria(e.target.value)}
-            className="h-7 text-[11px] rounded-md border border-border bg-pastel-sand/30 px-2 text-gray-700"
-            data-testid={`edit-subcategory-${p.sku}`}
-          >
-            <option value="">— Sin subcat —</option>
-            {(SUBCATS_BY_CAT[categoria] || []).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+          className="h-8 text-xs rounded-md border border-border bg-white px-2"
+        >
+          {["Marroquinería","Librería","Juguetería","Regalería","Tecno","General"].map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
       </td>
       <td className="p-3">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] uppercase tracking-wider text-gray-500 w-10">Normal</span>
-            <input
-              type="number"
-              value={precio}
-              step="0.01"
-              onChange={(e) => setPrecio(e.target.value)}
-              className="w-24 h-7 rounded-md border border-border bg-white px-2 text-xs tabular-nums"
-              data-testid={`edit-price-${p.sku}`}
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] uppercase tracking-wider text-red-600 w-10 font-semibold">Oferta</span>
-            <input
-              type="number"
-              value={precioOferta}
-              step="0.01"
-              placeholder="—"
-              onChange={(e) => setPrecioOferta(e.target.value)}
-              className="w-24 h-7 rounded-md border border-red-200 bg-red-50/50 px-2 text-xs tabular-nums focus:bg-white"
-              data-testid={`edit-offer-${p.sku}`}
-            />
-          </div>
-        </div>
+        <input
+          type="number"
+          value={precio}
+          step="0.01"
+          onChange={(e) => setPrecio(e.target.value)}
+          className="w-24 h-8 rounded-md border border-border bg-white px-2 text-xs tabular-nums"
+          data-testid={`edit-price-${p.sku}`}
+        />
+      </td>
+      <td className="p-3">
+        <input
+          type="number"
+          value={precioOferta || ""}
+          step="0.01"
+          placeholder="0"
+          onChange={(e) => setPrecioOferta(e.target.value)}
+          className={`w-24 h-8 rounded-md border px-2 text-xs tabular-nums ${
+            onSale ? "border-red-300 bg-red-50 font-semibold text-red-700" : "border-border bg-white"
+          }`}
+          data-testid={`edit-offer-${p.sku}`}
+          title="Precio de oferta (0 = sin oferta)"
+        />
       </td>
       <td className="p-3">
         <input
@@ -396,19 +389,20 @@ const ProductRow = ({ p, onSave, onDelete }) => {
           data-testid={`edit-stock-${p.sku}`}
         />
       </td>
-      <td className="p-3 text-center">
-        <label className="inline-flex items-center cursor-pointer" title="Mostrar en la portada de la web">
-          <input
-            type="checkbox"
-            checked={destacado}
-            onChange={(e) => setDestacado(e.target.checked)}
-            className="peer sr-only"
-            data-testid={`edit-featured-${p.sku}`}
-          />
-          <span className="relative h-5 w-9 rounded-full bg-gray-300 peer-checked:bg-brand-green transition-colors">
-            <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-          </span>
-        </label>
+      <td className="p-3">
+        <button
+          type="button"
+          onClick={quickToggleDestacado}
+          className={`h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-1 transition ${
+            destacado
+              ? "bg-brand-yellow text-brand-ink"
+              : "bg-white border border-border text-gray-500 hover:border-brand-ink"
+          }`}
+          data-testid={`toggle-featured-${p.sku}`}
+          title="Destacar en inicio (1 click)"
+        >
+          ★ {destacado ? "Destacado" : "Destacar"}
+        </button>
       </td>
       <td className="p-3 text-right">
         <div className="inline-flex gap-1">
@@ -526,25 +520,26 @@ const ManageProducts = () => {
         <table className="w-full text-left" data-testid="manage-table">
           <thead className="bg-brand-cream text-[11px] uppercase tracking-wider text-gray-600">
             <tr>
-              <th className="p-3 w-16"></th>
+              <th className="p-3 w-16">Foto</th>
               <th className="p-3">Producto</th>
               <th className="p-3">Categoría</th>
-              <th className="p-3">Precios (ARS)</th>
+              <th className="p-3">Precio normal</th>
+              <th className="p-3">Precio oferta</th>
               <th className="p-3">Stock</th>
-              <th className="p-3 text-center">Destacar</th>
+              <th className="p-3">Inicio</th>
               <th className="p-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading && items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-10 text-center text-gray-400">
+                <td colSpan={8} className="p-10 text-center text-gray-400">
                   <Loader2 className="w-5 h-5 animate-spin inline" />
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-10 text-center text-gray-500 text-sm">
+                <td colSpan={8} className="p-10 text-center text-gray-500 text-sm">
                   Sin resultados
                 </td>
               </tr>
@@ -668,7 +663,7 @@ const AddProduct = ({ onCreated }) => {
             ))}
           </select>
         </div>
-        {field("precio", "Precio ARS", "number", "0.00")}
+        {field("precio", "Precio Normal", "number", "0.00")}
         {field("stock", "Stock", "number", "0")}
         <div className="sm:col-span-2">
           {field("imagen", "URL de imagen (Cloudinary)", "url", "https://res.cloudinary.com/…")}
@@ -767,16 +762,16 @@ export default function Admin() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <img
-            src={`${process.env.PUBLIC_URL || ""}/logo-dd.png`}
-            alt="D+D"
+            src={`${process.env.PUBLIC_URL || ""}/nexo-logo.png`}
+            alt="Nexo Store"
             className="h-9 w-auto"
           />
           <div className="leading-tight hidden sm:block">
-            <p className="font-display font-bold text-brand-ink text-sm">
-              Back-office
+            <p className="font-display font-bold text-brand-blue text-sm">
+              Panel de Control
             </p>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
-              D+D · Alcorta
+            <p className="text-[10px] uppercase tracking-[0.2em] text-brand-teal font-semibold">
+              Nexo Store · Alcorta
             </p>
           </div>
           <div className="flex-1" />
@@ -792,8 +787,8 @@ export default function Admin() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <div>
-          <h1 className="font-display text-3xl sm:text-4xl font-bold text-brand-ink tracking-tight">
-            Panel de administración
+          <h1 className="font-display text-3xl sm:text-4xl font-bold text-brand-blue tracking-tight">
+            Panel de Control - Nexo Store
           </h1>
           <p className="text-sm text-gray-600 mt-1">
             Gestioná el inventario sin tocar el diseño de la web.
@@ -844,6 +839,9 @@ export default function Admin() {
             <TabsTrigger value="tools" data-testid="tab-tools" className="rounded-full px-4 data-[state=active]:bg-brand-ink data-[state=active]:text-brand-cream">
               Herramientas
             </TabsTrigger>
+            <TabsTrigger value="config" data-testid="tab-config" className="rounded-full px-4 data-[state=active]:bg-brand-ink data-[state=active]:text-brand-cream">
+              ⚙️ Configuración
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="manage" className="mt-4">
@@ -857,6 +855,9 @@ export default function Admin() {
           </TabsContent>
           <TabsContent value="tools" className="mt-4">
             <AdminTools onDone={loadStats} />
+          </TabsContent>
+          <TabsContent value="config" className="mt-4">
+            <StoreConfigForm />
           </TabsContent>
         </Tabs>
       </main>
