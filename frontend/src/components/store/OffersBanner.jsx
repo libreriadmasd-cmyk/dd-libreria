@@ -30,15 +30,15 @@ export const OffersBanner = () => {
       data-testid="offers-banner"
     >
       <div className="flex items-center gap-3 mb-5">
-        <div className="h-12 w-12 rounded-2xl bg-red-600 grid place-items-center shadow-md">
+        <div className="h-12 w-12 rounded-2xl bg-red-600 grid place-items-center shadow-lg">
           <Flame className="w-6 h-6 text-white" strokeWidth={2} />
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.25em] text-red-700 font-bold">
-            Ofertas activas
+          <p className="text-[11px] uppercase tracking-[0.3em] text-red-700 font-bold">
+            Ofertas de la semana
           </p>
           <h3 className="font-display text-2xl sm:text-3xl font-bold text-brand-ink leading-tight">
-            🔥 ¡Aprovechá ahora!
+            🔥 Todo lo mejor en precio especial
           </h3>
         </div>
       </div>

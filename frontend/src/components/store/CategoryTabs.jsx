@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { Briefcase, BookOpen, ToyBrick, Gift, Smartphone, Grid } from "lucide-react";
 
-// 5 main categories with icons + Todos
 export const FIXED_CATEGORIES = [
   "Todos",
   "Marroquinería",
@@ -10,60 +10,60 @@ export const FIXED_CATEGORIES = [
   "Tecno",
 ];
 
+const CATEGORY_ICONS = {
+  Todos: Grid,
+  Marroquinería: Briefcase,
+  Librería: BookOpen,
+  Juguetería: ToyBrick,
+  Regalería: Gift,
+  Tecno: Smartphone,
+};
+
+const CATEGORY_COLORS = {
+  Todos: "bg-brand-blue text-brand-cream",
+  Marroquinería: "bg-brand-teal text-white",
+  Librería: "bg-brand-blue text-white",
+  Juguetería: "bg-brand-coral text-white",
+  Regalería: "bg-brand-yellow text-brand-ink",
+  Tecno: "bg-brand-blueDark text-white",
+};
+
 export const CategoryTabs = ({ selected, onSelect, counts = {} }) => {
   const navigate = useNavigate();
 
   const handle = (cat) => {
-    if (window.location.pathname !== "/") navigate("/");
+    const path = cat === "Todos" ? "/" : `/categoria/${encodeURIComponent(cat)}`;
+    if (window.location.pathname !== path) navigate(path);
     onSelect(cat);
   };
 
-  // If data has "General" or other extra categories, expose General tab
-  const hasGeneral = (counts.General || 0) > 0;
-  const tabs = hasGeneral
-    ? [...FIXED_CATEGORIES, "General"]
-    : FIXED_CATEGORIES;
-
   return (
     <nav
-      className="sticky top-16 z-40 bg-brand-cream/90 backdrop-blur-xl border-b border-border"
+      className="sticky top-[4.5rem] z-40 bg-white/80 backdrop-blur-xl border-b border-brand-blue/10"
       data-testid="category-tabs"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2 sm:gap-3 py-3 overflow-x-auto scrollbar-hide">
-          {tabs.map((cat) => {
+          {FIXED_CATEGORIES.map((cat) => {
+            const Icon = CATEGORY_ICONS[cat] || Grid;
             const active = selected === cat;
-            const count =
-              cat === "Todos" ? counts.__total || 0 : counts[cat] || 0;
-            const featured = cat === "Marroquinería";
+            const count = cat === "Todos" ? counts.__total || 0 : counts[cat] || 0;
+            const colorClass = active
+              ? "bg-brand-ink text-white border border-brand-ink shadow-sm"
+              : "bg-white text-gray-600 border border-border hover:border-brand-blue hover:text-brand-blue";
             return (
               <button
                 key={cat}
                 type="button"
                 onClick={() => handle(cat)}
-                className={[
-                  "group relative shrink-0 inline-flex items-center gap-2 h-10 px-4 sm:px-5 rounded-full text-sm transition-all",
-                  active
-                    ? "bg-brand-ink text-brand-cream font-semibold shadow-sm"
-                    : featured
-                      ? "bg-pastel-mint text-brand-greenDark font-semibold border border-brand-green/30 hover:bg-brand-green hover:text-white"
-                      : "bg-white text-gray-700 border border-border hover:border-brand-ink hover:text-brand-ink font-medium",
-                ].join(" ")}
+                className={`group relative shrink-0 inline-flex items-center gap-3 h-11 px-4 sm:px-5 rounded-full text-sm font-medium transition-all ${colorClass}`}
                 data-testid={`category-tab-${cat}`}
               >
-                {featured && !active && (
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-brand-green"
-                    aria-hidden
-                  />
-                )}
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${CATEGORY_COLORS[cat] || "bg-slate-200 text-slate-800"}`}>
+                  <Icon className="w-4 h-4" />
+                </span>
                 <span className="tracking-tight">{cat}</span>
-                <span
-                  className={[
-                    "text-[11px] tabular-nums font-mono",
-                    active ? "text-white/70" : "text-gray-400",
-                  ].join(" ")}
-                >
+                <span className="text-[11px] tabular-nums text-gray-400">
                   {count.toLocaleString("es-AR")}
                 </span>
               </button>

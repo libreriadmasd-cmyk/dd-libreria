@@ -48,13 +48,18 @@ module.exports = {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        // Brand D+D (logo verde/amarillo)
+        // Brand Nexo palette and accents
         brand: {
           green: "#22A94A",
           greenDark: "#1B8A3C",
           yellow: "#F5B932",
           cream: "#FAFAF7",
           ink: "#1A1A1A",
+          blue: "#0F3A76",
+          blueDark: "#0B2C5B",
+          coral: "#F15A4A",
+          teal: "#2EC4B6",
+          tealDark: "#219187",
         },
         // Pasteles suaves para badges de categoría
         pastel: {

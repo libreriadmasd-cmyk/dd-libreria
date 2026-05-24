@@ -180,38 +180,39 @@ export const Navbar = ({ searchQuery, onSearchChange }) => {
   return (
     <>
       <header
-        className="sticky top-0 z-50 w-full border-b border-border bg-brand-cream/85 backdrop-blur-xl"
+        className="sticky top-0 z-50 w-full border-b border-brand-blue/10 bg-white/95 backdrop-blur-xl shadow-sm"
         data-testid="main-header"
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 grid grid-cols-3 items-center gap-3">
-          {/* Search left */}
-          <div className="justify-self-start w-full max-w-md hidden md:block">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+          <div className="hidden md:flex flex-1">
             <SearchBox value={searchQuery} onChange={onSearchChange} />
           </div>
 
-          {/* Centered logo */}
-          <Link
-            to="/"
-            className="justify-self-center flex flex-col items-center group shrink-0"
-            data-testid="nav-brand"
-          >
-            <img
-              src={`${process.env.PUBLIC_URL || ""}/nexo-logo.png`}
-              alt="Nexo Store · Conectamos lo que necesitás"
-              className="h-12 sm:h-14 w-auto object-contain"
-              data-testid="nav-logo"
-            />
-            <span className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-brand-teal font-semibold mt-0.5">
-              Conectamos lo que necesitás
-            </span>
-          </Link>
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center text-center pointer-events-none md:pointer-events-auto">
+            <Link
+              to="/"
+              className="flex flex-col items-center gap-1"
+              data-testid="nav-brand"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-brand-blue text-xl sm:text-2xl font-extrabold tracking-tight">
+                  Nexo
+                </span>
+                <span className="text-brand-coral text-xl sm:text-2xl font-extrabold tracking-tight">
+                  Store
+                </span>
+              </div>
+              <span className="text-[10px] uppercase tracking-[0.35em] text-brand-teal font-semibold">
+                Conectamos lo que necesitás
+              </span>
+            </Link>
+          </div>
 
-          {/* Cart right */}
-          <div className="justify-self-end flex items-center gap-2">
+          <div className="flex justify-end flex-1">
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="relative h-11 px-4 rounded-full bg-brand-ink text-brand-cream hover:bg-black active:scale-95 transition-all inline-flex items-center gap-2 text-sm font-medium"
+              className="relative h-11 px-4 rounded-full bg-brand-blue text-white hover:bg-brand-blueDark active:scale-[0.98] transition-all inline-flex items-center gap-2 text-sm font-semibold"
               data-testid="nav-cart-button"
               aria-label="Carrito"
             >
@@ -220,7 +221,7 @@ export const Navbar = ({ searchQuery, onSearchChange }) => {
               {count > 0 && (
                 <span
                   key={pulseKey}
-                  className="min-w-[22px] h-5 px-1.5 rounded-full bg-brand-yellow text-brand-ink text-[11px] font-bold grid place-items-center animate-cart-pulse"
+                  className="min-w-[22px] h-5 px-1.5 rounded-full bg-brand-yellow text-brand-blue text-[11px] font-bold grid place-items-center animate-cart-pulse"
                   data-testid="nav-cart-counter"
                 >
                   {count}
@@ -229,8 +230,7 @@ export const Navbar = ({ searchQuery, onSearchChange }) => {
             </button>
           </div>
         </div>
-        {/* Mobile search */}
-        <div className="md:hidden px-4 pb-3 -mt-1">
+        <div className="md:hidden px-4 pb-3">
           <SearchBox value={searchQuery} onChange={onSearchChange} />
         </div>
       </header>

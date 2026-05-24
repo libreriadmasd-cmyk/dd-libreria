@@ -11,7 +11,6 @@ import { fetchProducts, fetchCategories, fetchFacets } from "../lib/api";
 import { FeaturedSections } from "../components/store/FeaturedSections";
 import { FilterSidebar } from "../components/store/FilterSidebar";
 import { OffersBanner } from "../components/store/OffersBanner";
-import { SubcategoryNav } from "../components/store/SubcategoryNav";
 import { Footer } from "../components/store/Footer";
 import { TrustBanner } from "../components/store/TrustBanner";
 import { KitsCarousel } from "../components/store/KitsCarousel";
@@ -51,6 +50,16 @@ const CATEGORY_KEYWORDS = {
     "dados",
     "cartas",
   ],
+  "Regalería": [
+    "regalo",
+    "set",
+    "pack",
+    "souvenir",
+    "tarjeta",
+    "adorno",
+    "velas",
+    "box",
+  ],
   "Tecno": [
     "cable",
     "usb",
@@ -70,6 +79,7 @@ const classifyProductCategory = (product) => {
 
   if (["marroquinería", "marroquineria"].includes(category)) return "Marroquinería";
   if (["juguetería", "jugueteria"].includes(category)) return "Juguetería";
+  if (["regalería", "regaleria"].includes(category)) return "Regalería";
   if (category === "tecno") return "Tecno";
 
   if (CATEGORY_KEYWORDS["Marroquinería"].some((keyword) => title.includes(keyword))) {
@@ -77,6 +87,9 @@ const classifyProductCategory = (product) => {
   }
   if (CATEGORY_KEYWORDS["Juguetería"].some((keyword) => title.includes(keyword))) {
     return "Juguetería";
+  }
+  if (CATEGORY_KEYWORDS["Regalería"].some((keyword) => title.includes(keyword))) {
+    return "Regalería";
   }
   if (CATEGORY_KEYWORDS["Tecno"].some((keyword) => title.includes(keyword))) {
     return "Tecno";
@@ -88,6 +101,7 @@ const classifyProductCategory = (product) => {
 const matchesActiveCategory = (product, category) => category === "Todos" || classifyProductCategory(product) === category;
 
 export default function Home() {
+  const { cat } = useParams();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -101,6 +115,16 @@ export default function Home() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [hasMore, setHasMore] = useState(false);
   const [subCounts, setSubCounts] = useState({});
+
+  // Sync selected category with route param
+  useEffect(() => {
+    if (!cat) {
+      setActiveCat("Todos");
+      return;
+    }
+    const decoded = decodeURIComponent(cat);
+    setActiveCat(["Todos", "Marroquinería", "Librería", "Juguetería", "Regalería", "Tecno"].includes(decoded) ? decoded : "Todos");
+  }, [cat]);
 
   // Fetch facets counts for subcategory nav (hide empty options)
   useEffect(() => {
@@ -137,7 +161,10 @@ export default function Home() {
   // Reset filters when category changes
   useEffect(() => { setFilters(EMPTY_FILTERS); }, [activeCat]);
 
+  const navigate = useNavigate();
   const handleSelectCategory = (category) => {
+    const nextPath = category === "Todos" ? "/" : `/categoria/${encodeURIComponent(category)}`;
+    if (window.location.pathname !== nextPath) navigate(nextPath);
     setActiveCat(category);
   };
 
@@ -145,31 +172,29 @@ export default function Home() {
     let active = true;
     setLoading(true);
     setSkip(0);
-    const rawLimit = activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 3;
-    const query = {
+    const rawLimit = activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 4;
+    const params = {
       q: debouncedQuery,
       sort,
       skip: 0,
       limit: rawLimit,
       ...filters,
     };
-    if (activeCat === "Todos") {
-      query.categoria = activeCat;
-    }
+    if (!params.marca) delete params.marca;
+    if (!params.color) delete params.color;
+    if (!params.min_price) delete params.min_price;
+    if (!params.max_price) delete params.max_price;
+    if (!params.subcategoria) delete params.subcategoria;
+    if (!params.on_sale) delete params.on_sale;
 
-    fetchProducts(query)
+    fetchProducts(params)
       .then((data) => {
         if (!active) return;
         const rawItems = data.items || [];
         const filteredItems = rawItems.filter((product) => matchesActiveCategory(product, activeCat));
         setItems(filteredItems);
-        if (activeCat === "Todos") {
-          setTotal(data.total || 0);
-          setHasMore(filteredItems.length < (data.total || 0));
-        } else {
-          setTotal(filteredItems.length);
-          setHasMore(rawItems.length === rawLimit);
-        }
+        setTotal(activeCat === "Todos" ? Number(data.total || filteredItems.length) : filteredItems.length);
+        setHasMore(rawItems.length === rawLimit);
         setError(null);
       })
       .catch((e) => {
@@ -183,7 +208,7 @@ export default function Home() {
   }, [activeCat, debouncedQuery, sort, filters]);
 
   const handleLoadMore = async () => {
-    const rawLimit = activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 3;
+    const rawLimit = activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 4;
     const nextSkip = skip + rawLimit;
     setLoadingMore(true);
     try {
