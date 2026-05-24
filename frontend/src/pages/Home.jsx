@@ -18,6 +18,68 @@ import { FilterSidebar } from "../components/store/FilterSidebar";
 import { ChevronRight } from "lucide-react";
 
 const PAGE_SIZE = 48;
+const CATEGORY_KEYWORDS = {
+  "Marroquinería": [
+    "mochila",
+    "cartuchera",
+    "bolso",
+    "billetera",
+    "cartera",
+    "portafolio",
+  ],
+  "Juguetería": [
+    "juego",
+    "juguete",
+    "muñeca",
+    "auto",
+    "pelota",
+    "punteria",
+    "dados",
+    "cartas",
+  ],
+  "Tecno": [
+    "cable",
+    "usb",
+    "mouse",
+    "teclado",
+    "auricular",
+    "pila",
+    "calculadora",
+  ],
+};
+
+const normalizeTitle = (name) => (name || "").toLowerCase();
+
+const classifyProductCategory = (product) => {
+  const title = normalizeTitle(product?.nombre || product?.name || "");
+  const category = (product?.categoria || "").trim().toLowerCase();
+
+  if (["marroquinería", "marroquineria"].includes(category)) return "Marroquinería";
+  if (["juguetería", "jugueteria"].includes(category)) return "Juguetería";
+  if (category === "tecno") return "Tecno";
+
+  if (CATEGORY_KEYWORDS["Marroquinería"].some((keyword) => title.includes(keyword))) {
+    return "Marroquinería";
+  }
+  if (CATEGORY_KEYWORDS["Juguetería"].some((keyword) => title.includes(keyword))) {
+    return "Juguetería";
+  }
+  if (CATEGORY_KEYWORDS["Tecno"].some((keyword) => title.includes(keyword))) {
+    return "Tecno";
+  }
+
+  if (["librería", "libreria", "general", ""].includes(category)) {
+    return "Librería";
+  }
+
+  return product?.categoria || "Librería";
+};
+
+const matchesActiveCategory = (product, category) => {
+  if (category === "Todos") return true;
+  return classifyProductCategory(product) === category;
+};
+
 const SORT_OPTIONS = [
   { v: "relevance", label: "Relevancia" },
   { v: "price_asc", label: "Precio · menor a mayor" },
@@ -32,6 +94,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState("Todos");
   const [sort, setSort] = useState("relevance");
@@ -83,8 +146,8 @@ export default function Home() {
     let active = true;
     setLoading(true);
     setSkip(0);
-    fetchProducts({
-      categoria: activeCat,
+    const limit = activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 3;
+    const query = {
       subcategoria: filters.subcategoria,
       color: filters.color,
       brand: filters.brand,
@@ -93,12 +156,25 @@ export default function Home() {
       q: debouncedQuery,
       sort,
       skip: 0,
-      limit: PAGE_SIZE,
-    })
+      limit,
+    };
+    if (activeCat === "Todos") {
+      query.categoria = activeCat;
+    }
+
+    fetchProducts(query)
       .then((data) => {
         if (!active) return;
-        setItems(data.items || []);
-        setTotal(data.total || 0);
+        const rawItems = data.items || [];
+        const filteredItems = activeCat === "Todos" ? rawItems : rawItems.filter((product) => matchesActiveCategory(product, activeCat));
+        setItems(filteredItems);
+        if (activeCat === "Todos") {
+          setTotal(data.total || 0);
+          setHasMore(filteredItems.length < (data.total || 0));
+        } else {
+          setTotal(filteredItems.length);
+          setHasMore(rawItems.length === limit);
+        }
         setError(null);
       })
       .catch((e) => {
@@ -114,22 +190,34 @@ export default function Home() {
   }, [activeCat, debouncedQuery, sort, filters]);
 
   const handleLoadMore = async () => {
-    const nextSkip = skip + PAGE_SIZE;
+    const nextSkip = skip + (activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 3);
     setLoadingMore(true);
+    const limit = activeCat === "Todos" ? PAGE_SIZE : PAGE_SIZE * 3;
+    const query = {
+      subcategoria: filters.subcategoria,
+      color: filters.color,
+      brand: filters.brand,
+      precio_min: filters.priceMin,
+      precio_max: filters.priceMax,
+      q: debouncedQuery,
+      sort,
+      skip: nextSkip,
+      limit,
+    };
+    if (activeCat === "Todos") {
+      query.categoria = activeCat;
+    }
+
     try {
-      const data = await fetchProducts({
-        categoria: activeCat,
-        subcategoria: filters.subcategoria,
-        color: filters.color,
-        brand: filters.brand,
-        precio_min: filters.priceMin,
-        precio_max: filters.priceMax,
-        q: debouncedQuery,
-        sort,
-        skip: nextSkip,
-        limit: PAGE_SIZE,
-      });
-      setItems((prev) => [...prev, ...(data.items || [])]);
+      const data = await fetchProducts(query);
+      const rawItems = data.items || [];
+      const filteredItems = activeCat === "Todos" ? rawItems : rawItems.filter((product) => matchesActiveCategory(product, activeCat));
+      setItems((prev) => [...prev, ...filteredItems]);
+      if (activeCat === "Todos") {
+        setHasMore(filteredItems.length + items.length < (data.total || 0));
+      } else {
+        setHasMore(rawItems.length === limit);
+      }
       setSkip(nextSkip);
     } catch (e) {
       setError(e.message);
@@ -137,8 +225,6 @@ export default function Home() {
       setLoadingMore(false);
     }
   };
-
-  const hasMore = items.length < total;
 
   const subcategoryChips = useMemo(() => {
     return Array.from(

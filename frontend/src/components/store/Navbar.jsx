@@ -13,13 +13,13 @@ import { useCart } from "../../context/CartContext";
 import { formatARS } from "../../lib/format";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { searchSuggest } from "../../lib/api";
+import { cldThumb } from "../../lib/cloudinary";
 
 const isUrl = (s) => typeof s === "string" && /^https?:\/\//i.test(s);
 const resolveImg = (img) => {
   if (!img) return "";
-  if (isUrl(img)) return img;
-  if (img.startsWith("/api/")) return `${process.env.REACT_APP_BACKEND_URL}${img}`;
-  return `${process.env.PUBLIC_URL || ""}/images/${img}`;
+  const url = isUrl(img) ? img : `${process.env.PUBLIC_URL || ""}/images/${img}`;
+  return cldThumb(url);
 };
 const firstImage = (p) =>
   (Array.isArray(p.imagenes) && p.imagenes[0]) || p.imagen || "";
@@ -172,7 +172,6 @@ export const Navbar = ({ searchQuery, onSearchChange }) => {
   const { items, count, total, pulseKey, removeItem, updateQty, clear } =
     useCart();
   const [open, setOpen] = useState(false);
-  const [searchOpenMobile, setSearchOpenMobile] = useState(false);
 
   const handleWhatsApp = () => {
     window.open(buildWhatsAppUrl(items, total), "_blank", "noopener");
@@ -184,76 +183,56 @@ export const Navbar = ({ searchQuery, onSearchChange }) => {
         className="sticky top-0 z-50 w-full border-b border-border bg-brand-cream/85 backdrop-blur-xl"
         data-testid="main-header"
       >
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center gap-2 sm:gap-5 relative">
-          {/* Centered logo (absolute on every breakpoint so it always sits in middle) */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 grid grid-cols-3 items-center gap-3">
+          {/* Search left */}
+          <div className="justify-self-start w-full max-w-md hidden md:block">
+            <SearchBox value={searchQuery} onChange={onSearchChange} />
+          </div>
+
+          {/* Centered logo */}
           <Link
             to="/"
-            className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 flex items-center gap-2 group shrink-0"
+            className="justify-self-center flex flex-col items-center group shrink-0"
             data-testid="nav-brand"
           >
             <img
-              src={`${process.env.PUBLIC_URL || ""}/logo-dd.png`}
-              alt="D+D"
-              className="h-10 sm:h-11 w-auto object-contain"
+              src={`${process.env.PUBLIC_URL || ""}/nexo-logo.png`}
+              alt="Nexo Store · Conectamos lo que necesitás"
+              className="h-12 sm:h-14 w-auto object-contain"
               data-testid="nav-logo"
             />
-            <span className="hidden lg:flex flex-col leading-tight border-l border-border pl-3 ml-1">
-              <span className="font-serif italic text-[13px] text-brand-ink">
-                Librería & Marroquinería
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mt-0.5">
-                Alcorta · Rosario
-              </span>
+            <span className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-brand-teal font-semibold mt-0.5">
+              Conectamos lo que necesitás
             </span>
           </Link>
 
-          {/* Search: full on desktop / icon-toggle on mobile */}
-          <div className="hidden sm:block flex-1 max-w-md sm:mr-auto">
-            <SearchBox value={searchQuery} onChange={onSearchChange} />
+          {/* Cart right */}
+          <div className="justify-self-end flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="relative h-11 px-4 rounded-full bg-brand-ink text-brand-cream hover:bg-black active:scale-95 transition-all inline-flex items-center gap-2 text-sm font-medium"
+              data-testid="nav-cart-button"
+              aria-label="Carrito"
+            >
+              <ShoppingBag className="w-4 h-4" strokeWidth={1.75} />
+              <span className="hidden sm:inline">Bolsa</span>
+              {count > 0 && (
+                <span
+                  key={pulseKey}
+                  className="min-w-[22px] h-5 px-1.5 rounded-full bg-brand-yellow text-brand-ink text-[11px] font-bold grid place-items-center animate-cart-pulse"
+                  data-testid="nav-cart-counter"
+                >
+                  {count}
+                </span>
+              )}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setSearchOpenMobile((v) => !v)}
-            className="sm:hidden h-10 w-10 rounded-full bg-white border border-border grid place-items-center text-gray-700 hover:border-brand-ink active:scale-95 transition"
-            data-testid="nav-search-toggle"
-            aria-label="Buscar"
-          >
-            <Search className="w-4 h-4" />
-          </button>
-
-          <div className="flex-1 sm:hidden" />
-
-          {/* Cart */}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="relative h-10 sm:h-11 px-3 sm:px-4 rounded-full bg-brand-ink text-brand-cream hover:bg-black active:scale-95 transition-all inline-flex items-center gap-1.5 sm:gap-2 text-sm font-medium z-10"
-            data-testid="nav-cart-button"
-            aria-label="Carrito"
-          >
-            <ShoppingBag className="w-4 sm:w-4.5 h-4 sm:h-4.5" strokeWidth={1.75} />
-            <span className="hidden md:inline">Bolsa</span>
-            {count > 0 && (
-              <span
-                key={pulseKey}
-                className="min-w-[20px] h-5 px-1.5 rounded-full bg-brand-yellow text-brand-ink text-[11px] font-bold grid place-items-center animate-cart-pulse"
-                data-testid="nav-cart-counter"
-              >
-                {count}
-              </span>
-            )}
-          </button>
         </div>
-
-        {/* Mobile expandable search drawer */}
-        {searchOpenMobile && (
-          <div
-            className="sm:hidden border-t border-border bg-brand-cream/95 backdrop-blur-xl px-3 py-2.5 animate-fade-up"
-            data-testid="nav-search-mobile"
-          >
-            <SearchBox value={searchQuery} onChange={onSearchChange} />
-          </div>
-        )}
+        {/* Mobile search */}
+        <div className="md:hidden px-4 pb-3 -mt-1">
+          <SearchBox value={searchQuery} onChange={onSearchChange} />
+        </div>
       </header>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -392,7 +371,7 @@ export const Navbar = ({ searchQuery, onSearchChange }) => {
                 <X className="w-3.5 h-3.5" /> Vaciar bolsa
               </button>
               <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-                Finalizás tu pedido por WhatsApp con D+D. Stock y precio final
+                Finalizás tu pedido por WhatsApp con Nexo Store. Stock y precio final
                 se confirman en el chat.
               </p>
             </div>

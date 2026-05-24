@@ -1,56 +1,46 @@
 import { useState, useRef } from "react";
 import { toast } from "sonner";
+import { Camera, Loader2, X, Star, Trash2, ImageOff } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "../ui/dialog";
-import { Input } from "../ui/input";
-import { Plus, Trash2, ImageOff, Loader2, Star, UploadCloud, Camera } from "lucide-react";
-import { adminAddImage, adminRemoveImage, adminUploadFile, resolveBackendUrl } from "../../lib/api";
+import { adminAddImage, adminRemoveImage, adminUpdateProduct } from "../../lib/api";
+import { uploadToCloudinary, isCloudinaryConfigured } from "../../lib/cloudinary";
 
 export const GalleryModal = ({ product, open, onOpenChange, onChange }) => {
   const [images, setImages] = useState(product?.imagenes || []);
-  const [newUrl, setNewUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const fileInputRef = useRef(null);
+  const [progress, setProgress] = useState("");
+  const fileRef = useRef(null);
 
   const sync = (updated) => {
     setImages(updated.imagenes || []);
     onChange?.(updated);
   };
 
-  const add = async () => {
-    const url = newUrl.trim();
-    if (!url) return;
-    setBusy(true);
-    try {
-      const updated = await adminAddImage(product.sku, url);
-      sync(updated);
-      setNewUrl("");
-      toast.success("Imagen agregada");
-    } catch (e) {
-      toast.error("Error", { description: e.message });
-    } finally {
-      setBusy(false);
+  const handleFiles = async (files) => {
+    const list = Array.from(files || []);
+    if (list.length === 0) return;
+    if (!isCloudinaryConfigured()) {
+      toast.error("Cloudinary no configurado");
+      return;
     }
-  };
-
-  const onFilePicked = async (file) => {
-    if (!file) return;
     setBusy(true);
+    let last = null;
     try {
-      const uploaded = await adminUploadFile(file);
-      const updated = await adminAddImage(product.sku, uploaded.url);
-      sync(updated);
-      toast.success("Foto subida", { description: file.name });
+      for (let i = 0; i < list.length; i++) {
+        setProgress(`Subiendo ${i + 1}/${list.length}…`);
+        const url = await uploadToCloudinary(list[i]);
+        last = await adminAddImage(product.sku, url);
+      }
+      if (last) sync(last);
+      toast.success(`${list.length} foto${list.length > 1 ? "s" : ""} agregada${list.length > 1 ? "s" : ""}`);
     } catch (e) {
       toast.error("Error al subir", { description: e.message });
     } finally {
       setBusy(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setProgress("");
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -70,26 +60,8 @@ export const GalleryModal = ({ product, open, onOpenChange, onChange }) => {
     if (idx === 0) return;
     setBusy(true);
     try {
-      // Move the chosen image to position 0: remove then insert
-      const chosen = images[idx];
-      // remove + re-add at front: simulate via remove then add (which appends)
-      // Since backend append is the only op, we do:
-      //  1) grab a copy of imagenes
-      //  2) reorder locally, then PUT to /admin/products/{sku} with imagenes=reordered
-      const reordered = [chosen, ...images.filter((_, i) => i !== idx)];
-      const r = await fetch(
-        `${process.env.REACT_APP_BACKEND_URL}/api/admin/products/${encodeURIComponent(product.sku)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Admin-Token": localStorage.getItem("dd_admin_token") || "",
-          },
-          body: JSON.stringify({ imagenes: reordered }),
-        }
-      );
-      if (!r.ok) throw new Error("No se pudo reordenar");
-      const updated = await r.json();
+      const reordered = [images[idx], ...images.filter((_, i) => i !== idx)];
+      const updated = await adminUpdateProduct(product.sku, { imagenes: reordered });
       sync(updated);
       toast.success("Imagen principal actualizada");
     } catch (e) {
@@ -101,10 +73,7 @@ export const GalleryModal = ({ product, open, onOpenChange, onChange }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-2xl bg-brand-cream"
-        data-testid="gallery-modal"
-      >
+      <DialogContent className="max-w-2xl bg-brand-cream" data-testid="gallery-modal">
         <DialogHeader>
           <DialogTitle className="font-display text-xl font-bold text-brand-ink">
             Galería de imágenes
@@ -116,89 +85,58 @@ export const GalleryModal = ({ product, open, onOpenChange, onChange }) => {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* File upload — primary action */}
-          <div className="rounded-xl border-2 border-dashed border-brand-ink/30 bg-white p-5 text-center hover:border-brand-ink/60 hover:bg-brand-cream/40 transition-colors">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => onFilePicked(e.target.files?.[0])}
-              className="hidden"
-              data-testid="gallery-file-input"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={busy}
-              style={{ color: "#FAFAF7" }}
-              className="inline-flex items-center justify-center gap-2 h-14 px-7 rounded-full bg-brand-ink hover:bg-black active:scale-[0.98] disabled:opacity-50 transition-all text-base font-semibold"
-              data-testid="gallery-upload-file-btn"
-            >
-              {busy ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Camera className="w-5 h-5" />
-                  Subir foto desde mi dispositivo
-                </>
-              )}
-            </button>
-            <p className="text-xs text-gray-500 mt-2">
-              JPG, PNG o WEBP · hasta 8MB. Funciona desde celu o computadora.
-            </p>
-          </div>
+          {/* GIANT upload button */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => handleFiles(e.target.files)}
+            className="hidden"
+            data-testid="gallery-file-input"
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            className="w-full h-20 rounded-2xl border-2 border-dashed border-brand-green/40 bg-pastel-mint/40 hover:bg-pastel-mint hover:border-brand-green text-brand-greenDark font-bold text-base transition-all inline-flex items-center justify-center gap-3 disabled:opacity-50"
+            data-testid="gallery-upload-cloudinary"
+          >
+            {busy ? (
+              <>
+                <Loader2 className="w-6 h-6 animate-spin" />
+                {progress || "Subiendo…"}
+              </>
+            ) : (
+              <>
+                <Camera className="w-7 h-7" strokeWidth={2} />
+                📷 Cambiar / Agregar Foto
+                <span className="text-xs font-medium text-gray-500">(podés elegir varias)</span>
+              </>
+            )}
+          </button>
 
-          {/* Add URL — secondary */}
-          <div className="rounded-xl border border-border bg-white p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-700">
-              También podés pegar una URL de imagen directa
+          {!isCloudinaryConfigured() && (
+            <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
+              Cloudinary no configurado. Revisá REACT_APP_CLOUDINARY_CLOUD_NAME y REACT_APP_CLOUDINARY_UPLOAD_PRESET.
             </p>
-            <div className="flex gap-2">
-              <Input
-                value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
-                placeholder="https://res.cloudinary.com/…/imagen.webp"
-                className="h-10 rounded-xl bg-brand-cream border-border font-mono text-xs"
-                data-testid="gallery-new-url"
-                onKeyDown={(e) => e.key === "Enter" && add()}
-              />
-              <button
-                type="button"
-                onClick={add}
-                disabled={busy || !newUrl.trim()}
-                style={{ color: "#FAFAF7" }}
-                className="h-10 px-4 rounded-full bg-gray-800 hover:bg-black font-semibold text-sm disabled:opacity-50 inline-flex items-center gap-1.5"
-                data-testid="gallery-add-btn"
-              >
-                <Plus className="w-4 h-4" />
-                Agregar
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">
-              Copia la URL de Cloudinary, Imgur o cualquier imagen pública.
-            </p>
-          </div>
+          )}
 
-          {/* Grid */}
           {images.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-white p-8 text-center text-sm text-gray-500">
-              Aún no hay imágenes. Agregá la primera arriba.
+              Aún no hay imágenes. Tocá el botón para agregar la primera.
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="gallery-grid">
               {images.map((url, idx) => (
-                <div
-                  key={`${url}-${idx}`}
-                  className="relative group rounded-xl border border-border bg-white overflow-hidden"
-                >
+                <div key={`${url}-${idx}`} className="relative group rounded-xl border border-border bg-white overflow-hidden">
                   <div className="aspect-square bg-pastel-sand">
                     <img
-                      src={resolveBackendUrl(url)}
+                      src={url}
                       alt=""
                       className="w-full h-full object-contain p-2"
                       onError={(e) => {
-                        e.currentTarget.outerHTML = `<div class="w-full h-full grid place-items-center"><svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3l18 18M21 15V6a2 2 0 00-2-2H9m-3 1.333V18a2 2 0 002 2h12"/></svg></div>`;
+                        e.currentTarget.style.opacity = "0.2";
                       }}
                     />
                   </div>
@@ -210,9 +148,7 @@ export const GalleryModal = ({ product, open, onOpenChange, onChange }) => {
                   <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {idx !== 0 && (
                       <button
-                        type="button"
-                        onClick={() => makeMain(idx)}
-                        disabled={busy}
+                        type="button" onClick={() => makeMain(idx)} disabled={busy}
                         className="h-7 w-7 grid place-items-center rounded-full bg-white/90 text-gray-700 hover:text-brand-ink border border-border"
                         title="Hacer principal"
                       >
@@ -220,9 +156,7 @@ export const GalleryModal = ({ product, open, onOpenChange, onChange }) => {
                       </button>
                     )}
                     <button
-                      type="button"
-                      onClick={() => remove(idx)}
-                      disabled={busy}
+                      type="button" onClick={() => remove(idx)} disabled={busy}
                       className="h-7 w-7 grid place-items-center rounded-full bg-white/90 text-red-600 hover:bg-red-50 border border-border"
                       title="Eliminar"
                       data-testid={`gallery-remove-${idx}`}

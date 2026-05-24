@@ -8,11 +8,9 @@ import {
   ExternalLink,
   Check,
   X,
-  Package,
-  PackageCheck,
 } from "lucide-react";
 import { Input } from "../ui/input";
-import { adminImageTemplate, adminReclassify, adminCleanTitles, adminSubclassify, adminUpdatePricesBulk } from "../../lib/api";
+import { adminImageTemplate, adminReclassify, adminCleanTitles } from "../../lib/api";
 
 // ============ Image URL template =============
 const ImageTemplateTool = ({ onDone }) => {
@@ -307,24 +305,6 @@ const ReclassifyTool = ({ onDone }) => {
 export const AdminTools = ({ onDone }) => {
   const [cleaning, setCleaning] = useState(false);
   const [cleanResult, setCleanResult] = useState(null);
-  const [subclassifying, setSubclassifying] = useState(false);
-  const [subResult, setSubResult] = useState(null);
-
-  const subclassifyNow = async () => {
-    if (!window.confirm("Esto re-asigna subcategorías por palabra clave en todos los productos. ¿Continuar?")) return;
-    setSubclassifying(true);
-    setSubResult(null);
-    try {
-      const res = await adminSubclassify(true);
-      setSubResult(res);
-      toast.success("Subcategorías aplicadas", { description: `${res.scanned} productos analizados` });
-      onDone?.();
-    } catch (e) {
-      toast.error("Error", { description: e.message });
-    } finally {
-      setSubclassifying(false);
-    }
-  };
 
   const cleanTitles = async () => {
     if (!window.confirm(
@@ -348,44 +328,8 @@ export const AdminTools = ({ onDone }) => {
 
   return (
     <div className="space-y-4">
-      <BulkPriceTool onDone={onDone} />
       <ImageTemplateTool onDone={onDone} />
       <ReclassifyTool onDone={onDone} />
-
-      <div className="rounded-2xl border border-border bg-white p-6 space-y-4" data-testid="subclassify-tool">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-brand-greenDark" />
-            <h3 className="font-display text-lg font-bold text-brand-ink">
-              Asignar subcategorías + colores
-            </h3>
-          </div>
-          <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-            Analiza cada producto y le asigna una <b>subcategoría</b> (ej:
-            Mochilas, Estudio, Audio) y extrae <b>colores</b> del nombre (Rojo,
-            Azul, etc.). Lo que no matchee queda sin subcategoría.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={subclassifyNow}
-          disabled={subclassifying}
-          style={{ color: "#FAFAF7" }}
-          className="h-10 px-4 rounded-full bg-brand-ink hover:bg-black text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-40"
-          data-testid="subclassify-btn"
-        >
-          {subclassifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-          Aplicar subclasificación
-        </button>
-        {subResult && (
-          <div className="rounded-xl bg-pastel-mint/40 border border-brand-green/20 p-4 text-sm">
-            <p className="font-semibold text-brand-greenDark mb-2">
-              ✓ {subResult.scanned.toLocaleString("es-AR")} productos analizados
-              · {subResult.products_with_color} con color detectado
-            </p>
-          </div>
-        )}
-      </div>
 
       <div className="rounded-2xl border border-border bg-white p-6 space-y-4" data-testid="clean-titles-tool">
         <div>
@@ -432,65 +376,6 @@ export const AdminTools = ({ onDone }) => {
             )}
           </div>
         )}
-      </div>
-    </div>
-  );
-};
-
-// ============ Bulk price update tool ==============
-const BulkPriceTool = ({ onDone }) => {
-  const [categoria, setCategoria] = useState("Marroquinería");
-  const [subcategoria, setSubcategoria] = useState("");
-  const [porcentaje, setPorcentaje] = useState(0);
-  const [loading, setLoading] = useState(false);
-
-  const CATS = ["Marroquinería","Librería","Juguetería","Regalería","Tecno","General"];
-
-  const run = async () => {
-    if (!window.confirm(`Actualizar precios en ${categoria}${subcategoria ? ' / '+subcategoria : ''} en ${porcentaje}% ?`)) return;
-    setLoading(true);
-    try {
-      const res = await adminUpdatePricesBulk({ categoria, subcategoria: subcategoria || null, porcentaje: Number(porcentaje) });
-      toast.success("Precios actualizados", { description: `${res.modified || 0} productos modificados` });
-      onDone?.();
-    } catch (e) {
-      toast.error("Error", { description: e.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border border-border bg-white p-6 space-y-4" data-testid="bulk-price-tool">
-      <div className="flex items-center gap-2">
-        <Package className="w-4 h-4 text-brand-greenDark" />
-        <h3 className="font-display text-lg font-bold text-brand-ink">Actualización masiva de precios</h3>
-      </div>
-      <p className="text-sm text-gray-500">Seleccioná categoría (opcional subcategoría) y aplicá un porcentaje. Ej: 10 = +10%, -5 = -5%.</p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-600 mb-1">Categoría</label>
-          <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full h-10 rounded-xl bg-brand-cream border-border px-3 text-sm">
-            {CATS.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-600 mb-1">Subcategoría (opcional)</label>
-          <Input value={subcategoria} onChange={(e) => setSubcategoria(e.target.value)} placeholder="Mochilas, Estudio..." className="h-10 rounded-xl bg-brand-cream border-border" />
-        </div>
-
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-600 mb-1">Porcentaje</label>
-          <Input type="number" value={porcentaje} onChange={(e) => setPorcentaje(e.target.value)} className="h-10 rounded-xl bg-brand-cream border-border" />
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        <button type="button" onClick={run} disabled={loading} style={{ color: "#FAFAF7" }} className="h-10 px-4 rounded-full bg-brand-ink hover:bg-black text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-50">
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />} Aplicar
-        </button>
       </div>
     </div>
   );

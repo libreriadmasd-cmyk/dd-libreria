@@ -4,41 +4,36 @@ import { formatARS } from "../../lib/format";
 import { useCart } from "../../context/CartContext";
 import { toast } from "sonner";
 import { useState } from "react";
+import { cldThumb } from "../../lib/cloudinary";
 
 const CATEGORY_STYLES = {
   Marroquinería: "bg-pastel-mint text-brand-greenDark",
   Librería: "bg-pastel-sand text-gray-700",
   Juguetería: "bg-pastel-butter text-yellow-900",
   Regalería: "bg-pastel-lilac text-purple-800",
-  Escritura: "bg-pastel-sky text-blue-900",
+  Tecno: "bg-pastel-sky text-blue-900",
   General: "bg-gray-100 text-gray-600",
 };
 
-const isFullUrl = (s) => typeof s === "string" && /^https?:\/\//i.test(s);
+const isUrl = (s) => typeof s === "string" && /^https?:\/\//i.test(s);
 const resolveImg = (img) => {
   if (!img) return "";
-  if (isFullUrl(img)) return img;
-  if (img.startsWith("/api/")) return `${process.env.REACT_APP_BACKEND_URL}${img}`;
-  return `${process.env.PUBLIC_URL || ""}/images/${img}`;
+  const url = isUrl(img) ? img : `${process.env.PUBLIC_URL || ""}/images/${img}`;
+  return cldThumb(url);
 };
 const firstImage = (p) =>
   (Array.isArray(p?.imagenes) && p.imagenes[0]) || p?.imagen || "";
 
-// Fallback decoration: first 2 letters of the product name on a soft sand background
 const ImageFallback = ({ name }) => {
-  const initials = (name || "D+D")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  const initials = (name || "Nexo Store")
+    .split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((w) => w[0]).join("").toUpperCase();
   return (
     <div className="absolute inset-0 grid place-items-center bg-pastel-sand">
       <div className="flex flex-col items-center text-gray-400">
         <ImageOff className="w-6 h-6 mb-2" strokeWidth={1.5} />
         <span className="font-display text-2xl font-semibold text-gray-500">
-          {initials || "D+D"}
+          {initials || "Nexo Store"}
         </span>
       </div>
     </div>
@@ -51,16 +46,21 @@ export const ProductCard = ({ product }) => {
   const imgSrc = resolveImg(firstImage(product));
   const hasGallery =
     Array.isArray(product.imagenes) && product.imagenes.length > 1;
-  const onOffer =
-    typeof product.precio_oferta === "number" && product.precio_oferta > 0;
-  const displayPrice = onOffer ? product.precio_oferta : product.precio;
   const badgeClass =
     CATEGORY_STYLES[product.categoria] || CATEGORY_STYLES.General;
+
+  const oferta = Number(product.precio_oferta) || 0;
+  const precio = Number(product.precio) || 0;
+  const onSale = oferta > 0 && oferta < precio;
+  const offPercent = onSale
+    ? Math.round(((precio - oferta) / precio) * 100)
+    : 0;
 
   const handleAdd = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    addToCart(product);
+    const p = onSale ? { ...product, precio: oferta } : product;
+    addToCart(p);
     toast.success("Agregado a la bolsa", { description: product.nombre });
   };
 
@@ -83,26 +83,27 @@ export const ProductCard = ({ product }) => {
         ) : (
           <ImageFallback name={product.nombre} />
         )}
-        {onOffer && (
+        {onSale && (
           <span
-            className="absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white px-2 py-1 rounded-full shadow-sm"
-            data-testid="offer-badge"
+            className="absolute top-2 left-2 text-[11px] font-extrabold tracking-wide bg-red-600 text-white px-2.5 py-1 rounded-full shadow-md"
+            data-testid="off-badge"
           >
-            Oferta
+            -{offPercent}% OFF
           </span>
         )}
-        {product.stock !== undefined && product.stock <= 0 ? (
+        {product.destacado && !onSale && (
+          <span className="absolute top-2 left-2 text-[10px] font-bold tracking-wide bg-brand-yellow text-brand-ink px-2 py-0.5 rounded-full">
+            ★ Destacado
+          </span>
+        )}
+        {product.stock !== undefined && product.stock <= 0 && (
           <span className="absolute top-2 right-2 text-[10px] font-medium bg-white/95 text-gray-700 px-2 py-1 rounded-full border border-border">
             Consultar stock
           </span>
-        ) : product.stock !== undefined && product.stock <= 3 ? (
-          <span className="absolute top-2 right-2 text-[11px] font-semibold bg-red-50 text-red-700 px-2 py-1 rounded-full border border-red-100">
-            ¡Últimos disponibles!
-          </span>
-        ) : null}
+        )}
         {hasGallery && (
           <span
-            className="absolute bottom-2 left-2 text-[10px] font-semibold bg-white/95 text-brand-ink px-2 py-0.5 rounded-full border border-border inline-flex items-center gap-1"
+            className="absolute bottom-2 left-2 text-[10px] font-semibold bg-white/95 text-brand-ink px-2 py-0.5 rounded-full border border-border"
             data-testid="gallery-indicator"
           >
             +{product.imagenes.length - 1} fotos
@@ -110,12 +111,19 @@ export const ProductCard = ({ product }) => {
         )}
       </div>
 
-      <span
-        className={`inline-flex self-start text-[10px] font-medium px-2 py-0.5 rounded-full ${badgeClass}`}
-        data-testid="product-category"
-      >
-        {product.categoria || "General"}
-      </span>
+      <div className="flex flex-wrap gap-1 items-center">
+        <span
+          className={`inline-flex text-[10px] font-medium px-2 py-0.5 rounded-full ${badgeClass}`}
+          data-testid="product-category"
+        >
+          {product.categoria || "General"}
+        </span>
+        {product.marca && (
+          <span className="inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-ink/5 text-brand-ink">
+            {product.marca}
+          </span>
+        )}
+      </div>
 
       <h3
         className="mt-2 font-display font-medium text-brand-ink text-[14px] leading-snug line-clamp-2 min-h-[2.6em]"
@@ -124,26 +132,31 @@ export const ProductCard = ({ product }) => {
         {product.nombre}
       </h3>
 
-      <p className="mt-2 font-display tabular-nums" data-testid="product-price">
-        {onOffer ? (
-          <span className="flex items-baseline gap-3">
-            <span className="text-red-600 text-xl sm:text-2xl font-extrabold">{formatARS(displayPrice)}</span>
-            <span className="text-[11px] text-gray-300 line-through font-normal">{formatARS(product.precio)}</span>
-          </span>
+      <div className="mt-2 min-h-[44px]" data-testid="product-price-block">
+        {onSale ? (
+          <>
+            <p className="text-xs text-gray-400 line-through tabular-nums" data-testid="price-original">
+              {formatARS(precio)}
+            </p>
+            <p className="font-display text-lg font-bold text-red-600 tabular-nums" data-testid="price-sale">
+              {formatARS(oferta)}
+            </p>
+          </>
         ) : (
-          <span className="text-lg font-semibold text-brand-ink">{formatARS(displayPrice)}</span>
+          <p className="font-display text-lg font-semibold text-brand-ink tabular-nums" data-testid="product-price">
+            {formatARS(precio)}
+          </p>
         )}
-      </p>
+      </div>
 
       <button
         type="button"
         onClick={handleAdd}
-        style={{ color: "#FAFAF7" }}
-        className="mt-3 w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-full bg-brand-ink hover:bg-black active:scale-[0.98] transition-all text-[13px] font-semibold tracking-tight"
+        className="mt-3 w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-full bg-brand-teal hover:bg-brand-tealDark text-white active:scale-[0.98] transition-all duration-200 text-[13px] font-semibold tracking-tight shadow-sm hover:shadow-md"
         data-testid="add-to-cart-button"
       >
         <Plus className="w-4 h-4" strokeWidth={2.5} />
-        <span>Agregar al carrito</span>
+        <span>Lo quiero</span>
       </button>
     </Link>
   );

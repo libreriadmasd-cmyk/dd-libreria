@@ -83,7 +83,7 @@ export const Sidebar = ({
         <p className="font-display text-3xl font-bold text-gray-900 mt-1">
           {total}
         </p>
-        <p className="text-xs text-gray-500 mt-1">En el catálogo D+D</p>
+        <p className="text-xs text-gray-500 mt-1">En el catálogo Nexo</p>
       </div>
     </aside>
   );
